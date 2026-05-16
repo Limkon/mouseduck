@@ -1,0 +1,30 @@
+name: Build System Tool
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: 检出代码库
+      uses: actions/checkout@v4
+
+    - name: 配置 MSVC 开发者命令提示符
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: 编译 C 语言源代码
+      run: |
+        cl.exe main.c /Fe:SysRunner.exe /O2 /MD
+      
+    - name: 上传可执行文件产物
+      uses: actions/upload-artifact@v4
+      with:
+        name: SysRunner-Release
+        path: SysRunner.exe
+        retention-days: 7
