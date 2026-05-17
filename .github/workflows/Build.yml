@@ -1,10 +1,7 @@
 name: Build System Tool
 
 on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+  
   workflow_dispatch:
 
 jobs:
@@ -18,13 +15,14 @@ jobs:
     - name: 配置 MSVC 开发者命令提示符
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: 编译 C 语言源代码
+    - name: 使用 CMake 配置并编译
       run: |
-        cl.exe main.c /Fe:SysRunner.exe /O2 /MD User32.lib
+        cmake -B build
+        cmake --build build --config Release
       
     - name: 上传可执行文件产物
       uses: actions/upload-artifact@v4
       with:
         name: SysRunner-Release
-        path: SysRunner.exe
+        path: build/Release/SysRunner.exe
         retention-days: 7
