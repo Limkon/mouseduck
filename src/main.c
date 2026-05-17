@@ -47,11 +47,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (!RegisterClassEx(&wc)) return 0;
 
-    // 拉高主窗口以容纳更多控件
+    // 优化：调整窗口整体尺寸，使其扁平紧凑 (宽度360，高度220)
     HWND hwnd = CreateWindowEx(
         0, CLASS_NAME, "SysTool", 
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 350, 360,
+        CW_USEDEFAULT, CW_USEDEFAULT, 360, 220,
         NULL, NULL, hInstance, NULL
     );
 
@@ -60,6 +60,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
+    // 消息循环
     MSG msg = {0};
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
@@ -83,42 +84,42 @@ void PopulateHotkeyCombo(HWND hCombo) {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_CREATE: {
-            // 1. 间隔设置区域
-            HWND hLbl1 = CreateWindow("STATIC", "最小间隔 (ms):", WS_VISIBLE | WS_CHILD, 20, 20, 100, 20, hwnd, NULL, NULL, NULL);
-            hEditMin = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 130, 20, 80, 20, hwnd, (HMENU)ID_EDIT_MIN, NULL, NULL);
+            // ====== 第一行：左右并排设置间隔 ======
+            HWND hLbl1 = CreateWindow("STATIC", "最小间隔:", WS_VISIBLE | WS_CHILD, 15, 15, 80, 20, hwnd, NULL, NULL, NULL);
+            hEditMin = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 95, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MIN, NULL, NULL);
             
-            HWND hLbl2 = CreateWindow("STATIC", "最大间隔 (ms):", WS_VISIBLE | WS_CHILD, 20, 55, 100, 20, hwnd, NULL, NULL, NULL);
-            hEditMax = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 130, 55, 80, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);
+            HWND hLbl2 = CreateWindow("STATIC", "最大间隔:", WS_VISIBLE | WS_CHILD, 175, 15, 80, 20, hwnd, NULL, NULL, NULL);
+            hEditMax = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);
 
-            // 2. 动作选择区域
-            HWND hLbl3 = CreateWindow("STATIC", "模拟按键:", WS_VISIBLE | WS_CHILD, 20, 90, 100, 20, hwnd, NULL, NULL, NULL);
-            hCmbBtnType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 130, 90, 80, 100, hwnd, (HMENU)ID_CMB_BTN_TYPE, NULL, NULL);
+            // ====== 第二行：左右并排设置按键与模式 ======
+            HWND hLbl3 = CreateWindow("STATIC", "模拟按键:", WS_VISIBLE | WS_CHILD, 15, 45, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbBtnType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 42, 65, 150, hwnd, (HMENU)ID_CMB_BTN_TYPE, NULL, NULL);
             SendMessage(hCmbBtnType, CB_ADDSTRING, 0, (LPARAM)"左键");
             SendMessage(hCmbBtnType, CB_ADDSTRING, 0, (LPARAM)"右键");
-            SendMessage(hCmbBtnType, CB_SETCURSEL, 0, 0); // 默认选左键
+            SendMessage(hCmbBtnType, CB_SETCURSEL, 0, 0);
 
-            HWND hLbl4 = CreateWindow("STATIC", "点击模式:", WS_VISIBLE | WS_CHILD, 20, 125, 100, 20, hwnd, NULL, NULL, NULL);
-            hCmbActType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 130, 125, 80, 100, hwnd, (HMENU)ID_CMB_ACT_TYPE, NULL, NULL);
+            HWND hLbl4 = CreateWindow("STATIC", "点击模式:", WS_VISIBLE | WS_CHILD, 175, 45, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbActType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 255, 42, 65, 150, hwnd, (HMENU)ID_CMB_ACT_TYPE, NULL, NULL);
             SendMessage(hCmbActType, CB_ADDSTRING, 0, (LPARAM)"单击");
             SendMessage(hCmbActType, CB_ADDSTRING, 0, (LPARAM)"双击");
-            SendMessage(hCmbActType, CB_SETCURSEL, 0, 0); // 默认选单击
+            SendMessage(hCmbActType, CB_SETCURSEL, 0, 0);
 
-            // 3. 快捷键选择区域
-            HWND hLbl5 = CreateWindow("STATIC", "开启/暂停热键:", WS_VISIBLE | WS_CHILD, 20, 160, 100, 20, hwnd, NULL, NULL, NULL);
-            hCmbHkToggle = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 130, 160, 80, 100, hwnd, (HMENU)ID_CMB_HK_TOGGLE, NULL, NULL);
+            // ====== 第三行：左右并排设置热键 ======
+            HWND hLbl5 = CreateWindow("STATIC", "开启热键:", WS_VISIBLE | WS_CHILD, 15, 75, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbHkToggle = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 72, 65, 150, hwnd, (HMENU)ID_CMB_HK_TOGGLE, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkToggle);
-            SendMessage(hCmbHkToggle, CB_SETCURSEL, 7, 0); // 默认选 F8 (索引7)
+            SendMessage(hCmbHkToggle, CB_SETCURSEL, 7, 0); // 默认 F8
 
-            HWND hLbl6 = CreateWindow("STATIC", "强制停止热键:", WS_VISIBLE | WS_CHILD, 20, 195, 100, 20, hwnd, NULL, NULL, NULL);
-            hCmbHkStop = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 130, 195, 80, 100, hwnd, (HMENU)ID_CMB_HK_STOP, NULL, NULL);
+            HWND hLbl6 = CreateWindow("STATIC", "停止热键:", WS_VISIBLE | WS_CHILD, 175, 75, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbHkStop = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 255, 72, 65, 150, hwnd, (HMENU)ID_CMB_HK_STOP, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkStop);
-            SendMessage(hCmbHkStop, CB_SETCURSEL, 8, 0); // 默认选 F9 (索引8)
+            SendMessage(hCmbHkStop, CB_SETCURSEL, 8, 0); // 默认 F9
 
-            // 4. 应用按钮与状态栏
-            hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 20, 240, 290, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
-            hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 20, 285, 300, 20, hwnd, NULL, NULL, NULL);
+            // ====== 第四行与底部：通栏应用按钮与状态提示 ======
+            hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 15, 110, 315, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
+            hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 15, 150, 315, 20, hwnd, NULL, NULL, NULL);
             
-            // 界面美化：应用默认字体
+            // 应用默认字体
             SetDefaultFont(hLbl1); SetDefaultFont(hEditMin);
             SetDefaultFont(hLbl2); SetDefaultFont(hEditMax);
             SetDefaultFont(hLbl3); SetDefaultFont(hCmbBtnType);
@@ -134,13 +135,12 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_CTLCOLORSTATIC: {
             HDC hdcStatic = (HDC)wParam;
-            SetBkMode(hdcStatic, TRANSPARENT); // 设置文本背景为透明
-            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE); // 返回与窗口一致的画刷
+            SetBkMode(hdcStatic, TRANSPARENT); // 设置文本背景透明
+            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE); // 融合底色
         }
 
         case WM_COMMAND: {
             if (LOWORD(wParam) == ID_BTN_APPLY) {
-                // 1. 读取并校验时间间隔
                 char szMin[16], szMax[16];
                 GetWindowText(hEditMin, szMin, 16);
                 GetWindowText(hEditMax, szMax, 16);
@@ -156,14 +156,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 interval_min = temp_min;
                 interval_max = temp_max;
 
-                // 2. 读取动作类型
-                action_button = SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0); // 0:左, 1:右
-                action_mode   = SendMessage(hCmbActType, CB_GETCURSEL, 0, 0); // 0:单, 1:双
+                action_button = SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0);
+                action_mode   = SendMessage(hCmbActType, CB_GETCURSEL, 0, 0);
 
-                // 3. 读取并映射快捷键 (F1的虚拟键码是0x70, F12是0x7B)
                 int toggle_idx = SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
                 int stop_idx   = SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
-                
                 hotkey_toggle = VK_F1 + toggle_idx;
                 hotkey_stop   = VK_F1 + stop_idx;
 
