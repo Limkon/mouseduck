@@ -7,6 +7,12 @@
 #include "worker.h"
 #include "resource.h"
 
+// ====== 启用 Windows 现代视觉样式 (让按钮和输入框具有系统原生现代化外观) ======
+#pragma comment(linker,"\"/manifestdependency:type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+// ==============================================================================
+
 // 实例化全局变量（在 globals.h 中仅作了 extern 声明）
 bool is_active = false;
 int interval_min = 30;
@@ -28,7 +34,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    
+    // ====== 修复GUI色差(1/2)：将窗口底色改为系统标准控件面板的颜色 ======
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1); 
+    // =====================================================================
     
     // 加载图标 (引用 resource.h 中的宏)
     wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
@@ -96,6 +105,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
 
+        // ====== 修复GUI色差(2/2)：拦截静态控件绘制，使其背景透明并融合窗口底色 ======
+        case WM_CTLCOLORSTATIC: {
+            HDC hdcStatic = (HDC)wParam;
+            SetBkMode(hdcStatic, TRANSPARENT); // 设置文本背景为透明
+            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE); // 返回与窗口一致的画刷
+        }
+        // ==============================================================================
+
         case WM_COMMAND: {
             // 捕获按钮点击事件
             if (LOWORD(wParam) == ID_BTN_APPLY) {
@@ -126,7 +143,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_CLOSE:
-            // 拦截关闭请求，确保线程退出逻辑（如果需要的话，目前由于直接退出进程即可，所以直接销毁窗口）
+            // 拦截关闭请求，销毁窗口
             DestroyWindow(hwnd);
             break;
 
