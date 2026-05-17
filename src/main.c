@@ -19,15 +19,21 @@ int interval_min = 30;
 int interval_max = 30;
 HWND hStatusLabel = NULL;
 
-// 实例化新增功能全局变量及默认值
+// 实例化功能配置变量
 int action_button = 0; // 0: 左键, 1: 右键
 int action_mode = 0;   // 0: 单击, 1: 双击
 int hotkey_toggle = VK_F8; // 默认 F8
 int hotkey_stop = VK_F9;   // 默认 F9
 
+// 实例化后台绑定相关变量
+HWND target_hwnd = NULL;
+POINT bind_pt = {0, 0};
+int hotkey_bind = VK_F10;  // 默认 F10
+HWND hBindLabel = NULL;
+
 // 局部 UI 控件句柄
 HWND hEditMin, hEditMax, hBtnApply;
-HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop;
+HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -39,7 +45,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1); // 修复色差
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1); 
     
     wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
     wc.hIconSm = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
@@ -47,11 +53,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (!RegisterClassEx(&wc)) return 0;
 
-    // 优化：调整窗口整体尺寸，使其扁平紧凑 (宽度360，高度220)
+    // 调整窗口高度以容纳新的绑定热键和状态栏 (高度增加至280)
     HWND hwnd = CreateWindowEx(
         0, CLASS_NAME, "SysTool", 
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 360, 220,
+        CW_USEDEFAULT, CW_USEDEFAULT, 360, 280,
         NULL, NULL, hInstance, NULL
     );
 
@@ -60,7 +66,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ShowWindow(hwnd, nCmdShow);
     UpdateWindow(hwnd);
 
-    // 消息循环
     MSG msg = {0};
     while (GetMessage(&msg, NULL, 0, 0)) {
         TranslateMessage(&msg);
@@ -73,7 +78,6 @@ void SetDefaultFont(HWND hwnd) {
     SendMessage(hwnd, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
 }
 
-// 辅助函数：向下拉菜单填充 F1 - F12
 void PopulateHotkeyCombo(HWND hCombo) {
     const char* keys[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"};
     for (int i = 0; i < 12; i++) {
@@ -84,14 +88,14 @@ void PopulateHotkeyCombo(HWND hCombo) {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_CREATE: {
-            // ====== 第一行：左右并排设置间隔 ======
+            // 第一行：间隔设置
             HWND hLbl1 = CreateWindow("STATIC", "最小间隔:", WS_VISIBLE | WS_CHILD, 15, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMin = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 95, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MIN, NULL, NULL);
             
             HWND hLbl2 = CreateWindow("STATIC", "最大间隔:", WS_VISIBLE | WS_CHILD, 175, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMax = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);
 
-            // ====== 第二行：左右并排设置按键与模式 ======
+            // 第二行：按键与模式
             HWND hLbl3 = CreateWindow("STATIC", "模拟按键:", WS_VISIBLE | WS_CHILD, 15, 45, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbBtnType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 42, 65, 150, hwnd, (HMENU)ID_CMB_BTN_TYPE, NULL, NULL);
             SendMessage(hCmbBtnType, CB_ADDSTRING, 0, (LPARAM)"左键");
@@ -104,39 +108,50 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SendMessage(hCmbActType, CB_ADDSTRING, 0, (LPARAM)"双击");
             SendMessage(hCmbActType, CB_SETCURSEL, 0, 0);
 
-            // ====== 第三行：左右并排设置热键 ======
+            // 第三行：控制热键
             HWND hLbl5 = CreateWindow("STATIC", "开启热键:", WS_VISIBLE | WS_CHILD, 15, 75, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbHkToggle = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 72, 65, 150, hwnd, (HMENU)ID_CMB_HK_TOGGLE, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkToggle);
-            SendMessage(hCmbHkToggle, CB_SETCURSEL, 7, 0); // 默认 F8
+            SendMessage(hCmbHkToggle, CB_SETCURSEL, 7, 0); // F8
 
             HWND hLbl6 = CreateWindow("STATIC", "停止热键:", WS_VISIBLE | WS_CHILD, 175, 75, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbHkStop = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 255, 72, 65, 150, hwnd, (HMENU)ID_CMB_HK_STOP, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkStop);
-            SendMessage(hCmbHkStop, CB_SETCURSEL, 8, 0); // 默认 F9
+            SendMessage(hCmbHkStop, CB_SETCURSEL, 8, 0); // F9
 
-            // ====== 第四行与底部：通栏应用按钮与状态提示 ======
-            hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 15, 110, 315, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
-            hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 15, 150, 315, 20, hwnd, NULL, NULL, NULL);
+            // 第四行：绑定热键 (单列)
+            HWND hLbl7 = CreateWindow("STATIC", "绑定热键:", WS_VISIBLE | WS_CHILD, 15, 105, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbHkBind = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 102, 65, 150, hwnd, (HMENU)ID_CMB_HK_BIND, NULL, NULL);
+            PopulateHotkeyCombo(hCmbHkBind);
+            SendMessage(hCmbHkBind, CB_SETCURSEL, 9, 0); // F10
+
+            // 第五行：应用按钮
+            hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 15, 140, 305, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
             
-            // 应用默认字体
+            // 第六行：运行状态
+            hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 15, 185, 305, 20, hwnd, NULL, NULL, NULL);
+            
+            // 第七行：绑定状态
+            hBindLabel = CreateWindow("STATIC", "未绑定 (全局模式)", WS_VISIBLE | WS_CHILD, 15, 210, 305, 20, hwnd, NULL, NULL, NULL);
+            
+            // 字体美化
             SetDefaultFont(hLbl1); SetDefaultFont(hEditMin);
             SetDefaultFont(hLbl2); SetDefaultFont(hEditMax);
             SetDefaultFont(hLbl3); SetDefaultFont(hCmbBtnType);
             SetDefaultFont(hLbl4); SetDefaultFont(hCmbActType);
             SetDefaultFont(hLbl5); SetDefaultFont(hCmbHkToggle);
             SetDefaultFont(hLbl6); SetDefaultFont(hCmbHkStop);
-            SetDefaultFont(hBtnApply); SetDefaultFont(hStatusLabel);
+            SetDefaultFont(hLbl7); SetDefaultFont(hCmbHkBind);
+            SetDefaultFont(hBtnApply); SetDefaultFont(hStatusLabel); SetDefaultFont(hBindLabel);
 
-            // 启动后台工作线程
             CreateThread(NULL, 0, WorkerThread, (LPVOID)hwnd, 0, NULL);
             break;
         }
 
         case WM_CTLCOLORSTATIC: {
             HDC hdcStatic = (HDC)wParam;
-            SetBkMode(hdcStatic, TRANSPARENT); // 设置文本背景透明
-            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE); // 融合底色
+            SetBkMode(hdcStatic, TRANSPARENT);
+            return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
         }
 
         case WM_COMMAND: {
@@ -159,12 +174,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 action_button = SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0);
                 action_mode   = SendMessage(hCmbActType, CB_GETCURSEL, 0, 0);
 
-                int toggle_idx = SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
-                int stop_idx   = SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
-                hotkey_toggle = VK_F1 + toggle_idx;
-                hotkey_stop   = VK_F1 + stop_idx;
+                hotkey_toggle = VK_F1 + SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
+                hotkey_stop   = VK_F1 + SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
+                hotkey_bind   = VK_F1 + SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0); // 读取绑定热键
 
-                MessageBox(hwnd, "参数与快捷键已成功应用！\n(请确保开启和停止不要设置为同一个按键)", "提示", MB_OK | MB_ICONINFORMATION);
+                MessageBox(hwnd, "参数与快捷键已成功应用！\n(鼠标悬停在目标位置按下绑定键即可后台锁定)", "提示", MB_OK | MB_ICONINFORMATION);
             }
             break;
         }
