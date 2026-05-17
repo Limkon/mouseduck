@@ -4,6 +4,14 @@ project(SysTool)
 
 set(CMAKE_C_STANDARD 99)
 
+# ====== 修复中文乱码：指定源码编码为 UTF-8，执行编码为 GBK ======
+if(MSVC)
+    add_compile_options(/source-charset:utf-8 /execution-charset:gbk)
+elseif(MINGW)
+    add_compile_options(-finput-charset=UTF-8 -fexec-charset=GBK)
+endif()
+# ==================================================================
+
 # 隐藏控制台黑框 (使用 Windows 子系统)
 if(MSVC)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
