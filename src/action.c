@@ -4,20 +4,17 @@
 
 void execute_action() {
     int loops = (action_mode == 0) ? 1 : 2;
-    UINT down = (action_button == 0) ? WM_LBUTTONDOWN : WM_RBUTTONDOWN;
-    UINT up   = (action_button == 0) ? WM_LBUTTONUP   : WM_RBUTTONUP;
-    WPARAM wp = (action_button == 0) ? MK_LBUTTON     : MK_RBUTTON;
-    LPARAM lp = MAKELPARAM(bind_pt.x, bind_pt.y);
-
     if (target_hwnd && IsWindow(target_hwnd)) {
-        // 后台绑定模式
+        UINT down = (action_button == 0) ? WM_LBUTTONDOWN : WM_RBUTTONDOWN;
+        UINT up   = (action_button == 0) ? WM_LBUTTONUP   : WM_RBUTTONUP;
+        WPARAM wp = (action_button == 0) ? MK_LBUTTON : MK_RBUTTON;
+        LPARAM lp = MAKELPARAM(bind_pt.x, bind_pt.y);
         for (int i = 0; i < loops; i++) {
             PostMessage(target_hwnd, down, wp, lp);
             PostMessage(target_hwnd, up, 0, lp);
             if (loops > 1 && i == 0) Sleep(30);
         }
     } else {
-        // 全局前台模式
         INPUT input = {0};
         input.type = INPUT_MOUSE;
         DWORD dflag = (action_button == 0) ? MOUSEEVENTF_LEFTDOWN : MOUSEEVENTF_RIGHTDOWN;
@@ -40,23 +37,34 @@ void execute_playback() {
             if (record_buffer[i].delay > 0) Sleep(record_buffer[i].delay);
 
             UINT msg = record_buffer[i].msg_type;
+            POINT pt = record_buffer[i].pt;
+
             if (target_hwnd && IsWindow(target_hwnd)) {
                 // 后台模式
-                POINT pt = record_buffer[i].pt;
                 ScreenToClient(target_hwnd, &pt);
                 LPARAM lp = MAKELPARAM(pt.x, pt.y);
-                WPARAM wp = 0;
-                if (msg == WM_LBUTTONDOWN) wp = MK_LBUTTON;
-                else if (msg == WM_RBUTTONDOWN) wp = MK_RBUTTON;
+                WPARAM wp = (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP) ? MK_LBUTTON : MK_RBUTTON;
                 PostMessage(target_hwnd, msg, wp, lp);
             } else {
-                // 前台模式
+                // 前台全局模式 - 增强版
                 INPUT input = {0};
                 input.type = INPUT_MOUSE;
-                if (msg == WM_LBUTTONDOWN) input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-                else if (msg == WM_LBUTTONUP) input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
-                else if (msg == WM_RBUTTONDOWN) input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-                else if (msg == WM_RBUTTONUP) input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+
+                if (msg == WM_LBUTTONDOWN) {
+                    input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+                } else if (msg == WM_LBUTTONUP) {
+                    input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                } else if (msg == WM_RBUTTONDOWN) {
+                    input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+                } else if (msg == WM_RBUTTONUP) {
+                    input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+                }
+
+                // 确保移动到正确位置
+                input.mi.dwFlags |= MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+                input.mi.dx = (pt.x * 65535) / GetSystemMetrics(SM_CXSCREEN);
+                input.mi.dy = (pt.y * 65535) / GetSystemMetrics(SM_CYSCREEN);
+
                 SendInput(1, &input, sizeof(INPUT));
             }
         }
