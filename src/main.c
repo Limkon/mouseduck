@@ -4,6 +4,7 @@
 
 #include "globals.h"
 #include "worker.h"
+#include "action.h"     // 新增：解决 execute_playback 未定义
 #include "resource.h"
 
 bool is_active = false;
@@ -27,6 +28,10 @@ int hotkey_record = VK_F11, hotkey_playback = VK_F12;
 HWND hEditMin, hEditMax, hBtnApply;
 HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
 HWND hEditPlayCount, hCmbHkRecord, hCmbHkPlay;
+
+// 先声明
+BOOL RegisterAllHotkeys(HWND hwnd);
+void UnregisterAllHotkeys(HWND hwnd);
 
 BOOL RegisterAllHotkeys(HWND hwnd) {
     UnregisterAllHotkeys(hwnd);
@@ -58,13 +63,11 @@ void PopulateHotkeyCombo(HWND hCombo) {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_CREATE: {
-            // 第一行：间隔
             CreateWindow("STATIC", "最小间隔:", WS_VISIBLE | WS_CHILD, 15, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMin = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 95, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MIN, NULL, NULL);
             CreateWindow("STATIC", "最大间隔:", WS_VISIBLE | WS_CHILD, 175, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMax = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);
 
-            // 第二行：按键与模式
             CreateWindow("STATIC", "模拟按键:", WS_VISIBLE | WS_CHILD, 15, 45, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbBtnType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 42, 65, 150, hwnd, (HMENU)ID_CMB_BTN_TYPE, NULL, NULL);
             SendMessage(hCmbBtnType, CB_ADDSTRING, 0, (LPARAM)"左键");
@@ -76,7 +79,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SendMessage(hCmbActType, CB_ADDSTRING, 0, (LPARAM)"双击");
             SendMessage(hCmbActType, CB_SETCURSEL, 0, 0);
 
-            // 第三行：控制热键
             CreateWindow("STATIC", "开启热键:", WS_VISIBLE | WS_CHILD, 15, 75, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbHkToggle = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 72, 65, 150, hwnd, (HMENU)ID_CMB_HK_TOGGLE, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkToggle); SendMessage(hCmbHkToggle, CB_SETCURSEL, 7, 0);
@@ -84,7 +86,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             hCmbHkStop = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 255, 72, 65, 150, hwnd, (HMENU)ID_CMB_HK_STOP, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkStop); SendMessage(hCmbHkStop, CB_SETCURSEL, 8, 0);
 
-            // 第四行：绑定 + 录制
             CreateWindow("STATIC", "绑定热键:", WS_VISIBLE | WS_CHILD, 15, 105, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbHkBind = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 102, 65, 150, hwnd, (HMENU)ID_CMB_HK_BIND, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkBind); SendMessage(hCmbHkBind, CB_SETCURSEL, 9, 0);
@@ -92,23 +93,19 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             hCmbHkRecord = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 255, 102, 65, 150, hwnd, (HMENU)ID_CMB_HK_RECORD, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkRecord); SendMessage(hCmbHkRecord, CB_SETCURSEL, 10, 0);
 
-            // 第五行：回放 + 次数
             CreateWindow("STATIC", "回放热键:", WS_VISIBLE | WS_CHILD, 15, 135, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbHkPlay = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 132, 65, 150, hwnd, (HMENU)ID_CMB_HK_PLAY, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkPlay); SendMessage(hCmbHkPlay, CB_SETCURSEL, 11, 0);
             CreateWindow("STATIC", "回放次数:", WS_VISIBLE | WS_CHILD, 175, 135, 80, 20, hwnd, NULL, NULL, NULL);
             hEditPlayCount = CreateWindow("EDIT", "1", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 132, 65, 20, hwnd, (HMENU)ID_EDIT_PLAYCOUNT, NULL, NULL);
 
-            // 按钮与状态
             hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 15, 170, 305, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
             hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 15, 215, 305, 20, hwnd, NULL, NULL, NULL);
             hBindLabel = CreateWindow("STATIC", "未绑定 (全局模式)", WS_VISIBLE | WS_CHILD, 15, 240, 305, 20, hwnd, NULL, NULL, NULL);
 
-            // 字体
-            HWND ctrls[] = {hEditMin, hEditMax, hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop,
-                            hCmbHkBind, hCmbHkRecord, hCmbHkPlay, hEditPlayCount, hBtnApply,
-                            hStatusLabel, hBindLabel};
-            for (int i = 0; i < sizeof(ctrls)/sizeof(ctrls[0]); i++) SetDefaultFont(ctrls[i]);
+            HWND ctrls[] = {hEditMin,hEditMax,hCmbBtnType,hCmbActType,hCmbHkToggle,hCmbHkStop,
+                            hCmbHkBind,hCmbHkRecord,hCmbHkPlay,hEditPlayCount,hBtnApply,hStatusLabel,hBindLabel};
+            for (int i = 0; i < (int)(sizeof(ctrls)/sizeof(ctrls[0])); i++) SetDefaultFont(ctrls[i]);
 
             CreateThread(NULL, 0, WorkerThread, hwnd, 0, NULL);
             RegisterAllHotkeys(hwnd);
@@ -133,8 +130,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             } else if (id == HOTKEY_ID_STOP) {
                 is_active = false;
                 SetWindowTextA(hStatusLabel, ">> 状态: 已强制停止");
-            } else if (id == HOTKEY_ID_BIND) {
-                // 绑定由 worker 轮询处理
             }
             return 0;
         }
@@ -147,22 +142,22 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 if (interval_min < 1) interval_min = 1;
                 if (interval_max < interval_min) interval_max = interval_min;
 
-                action_button = SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0);
-                action_mode = SendMessage(hCmbActType, CB_GETCURSEL, 0, 0);
+                action_button = (int)SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0);
+                action_mode = (int)SendMessage(hCmbActType, CB_GETCURSEL, 0, 0);
 
-                hotkey_toggle = VK_F1 + SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
-                hotkey_stop   = VK_F1 + SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
-                hotkey_bind   = VK_F1 + SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0);
+                hotkey_toggle = VK_F1 + (int)SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
+                hotkey_stop   = VK_F1 + (int)SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
+                hotkey_bind   = VK_F1 + (int)SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0);
 
                 GetWindowText(hEditPlayCount, buf, 16);
                 playback_count = atoi(buf);
                 if (playback_count < 1) playback_count = 1;
 
-                hotkey_record   = VK_F1 + SendMessage(hCmbHkRecord, CB_GETCURSEL, 0, 0);
-                hotkey_playback = VK_F1 + SendMessage(hCmbHkPlay, CB_GETCURSEL, 0, 0);
+                hotkey_record   = VK_F1 + (int)SendMessage(hCmbHkRecord, CB_GETCURSEL, 0, 0);
+                hotkey_playback = VK_F1 + (int)SendMessage(hCmbHkPlay, CB_GETCURSEL, 0, 0);
 
                 RegisterAllHotkeys(hwnd);
-                MessageBox(hwnd, "设置已应用！\n全局热键已生效（支持后台最小化）", "成功", MB_OK | MB_ICONINFORMATION);
+                MessageBox(hwnd, "设置已应用！\n全局热键已生效", "成功", MB_OK | MB_ICONINFORMATION);
             }
             break;
 
