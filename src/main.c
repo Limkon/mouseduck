@@ -13,27 +13,38 @@ name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 // =======================================
 
-// 实例化全局变量
+// 实例化原有全局变量
 bool is_active = false;
 int interval_min = 30;
 int interval_max = 30;
 HWND hStatusLabel = NULL;
 
-// 实例化功能配置变量
+// 实例化原有功能配置变量
 int action_button = 0; // 0: 左键, 1: 右键
 int action_mode = 0;   // 0: 单击, 1: 双击
 int hotkey_toggle = VK_F8; // 默认 F8
 int hotkey_stop = VK_F9;   // 默认 F9
 
-// 实例化后台绑定相关变量
+// 实例化原有后台绑定相关变量
 HWND target_hwnd = NULL;
 POINT bind_pt = {0, 0};
 int hotkey_bind = VK_F10;  // 默认 F10
 HWND hBindLabel = NULL;
 
+// ====== 新增：实例化录制与回放相关全局变量 ======
+MouseRecord record_buffer[MAX_RECORD_SIZE];
+int record_count = 0;
+bool is_recording = false;
+int playback_count = 1;
+int hotkey_record = VK_F11;   // 默认 F11
+int hotkey_playback = VK_F12; // 默认 F12
+
 // 局部 UI 控件句柄
 HWND hEditMin, hEditMax, hBtnApply;
 HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
+
+// ====== 新增：录制与回放 UI 控件句柄 ======
+HWND hEditPlayCount, hCmbHkRecord, hCmbHkPlay;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -53,11 +64,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (!RegisterClassEx(&wc)) return 0;
 
-    // 调整窗口高度以容纳新的绑定热键和状态栏 (高度增加至280)
+    // 调整窗口高度以容纳新的录制回放设置行 (高度从 280 增加至 330)
     HWND hwnd = CreateWindowEx(
         0, CLASS_NAME, "SysTool", 
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 360, 280,
+        CW_USEDEFAULT, CW_USEDEFAULT, 360, 330,
         NULL, NULL, hInstance, NULL
     );
 
@@ -119,20 +130,34 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             PopulateHotkeyCombo(hCmbHkStop);
             SendMessage(hCmbHkStop, CB_SETCURSEL, 8, 0); // F9
 
-            // 第四行：绑定热键 (单列)
+            // 第四行：绑定热键 与 录制热键并排
             HWND hLbl7 = CreateWindow("STATIC", "绑定热键:", WS_VISIBLE | WS_CHILD, 15, 105, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbHkBind = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 102, 65, 150, hwnd, (HMENU)ID_CMB_HK_BIND, NULL, NULL);
             PopulateHotkeyCombo(hCmbHkBind);
             SendMessage(hCmbHkBind, CB_SETCURSEL, 9, 0); // F10
 
-            // 第五行：应用按钮
-            hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 15, 140, 305, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
+            HWND hLbl8 = CreateWindow("STATIC", "录制热键:", WS_VISIBLE | WS_CHILD, 175, 105, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbHkRecord = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 255, 102, 65, 150, hwnd, (HMENU)ID_CMB_HK_RECORD, NULL, NULL);
+            PopulateHotkeyCombo(hCmbHkRecord);
+            SendMessage(hCmbHkRecord, CB_SETCURSEL, 10, 0); // F11
+
+            // 第五行：新增 回放热键 与 回放次数并排
+            HWND hLbl9 = CreateWindow("STATIC", "回放热键:", WS_VISIBLE | WS_CHILD, 15, 135, 80, 20, hwnd, NULL, NULL, NULL);
+            hCmbHkPlay = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 132, 65, 150, hwnd, (HMENU)ID_CMB_HK_PLAY, NULL, NULL);
+            PopulateHotkeyCombo(hCmbHkPlay);
+            SendMessage(hCmbHkPlay, CB_SETCURSEL, 11, 0); // F12
+
+            HWND hLbl10 = CreateWindow("STATIC", "回放次数:", WS_VISIBLE | WS_CHILD, 175, 135, 80, 20, hwnd, NULL, NULL, NULL);
+            hEditPlayCount = CreateWindow("EDIT", "1", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 132, 65, 20, hwnd, (HMENU)ID_EDIT_PLAYCOUNT, NULL, NULL);
+
+            // 第六行：应用按钮 (Y坐标由 140 下移至 170)
+            hBtnApply = CreateWindow("BUTTON", "应用所有设置", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON, 15, 170, 305, 30, hwnd, (HMENU)ID_BTN_APPLY, NULL, NULL);
             
-            // 第六行：运行状态
-            hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 15, 185, 305, 20, hwnd, NULL, NULL, NULL);
+            // 第七行：运行状态 (Y坐标由 185 下移至 215)
+            hStatusLabel = CreateWindow("STATIC", ">> 状态: 已准备就绪", WS_VISIBLE | WS_CHILD, 15, 215, 305, 20, hwnd, NULL, NULL, NULL);
             
-            // 第七行：绑定状态
-            hBindLabel = CreateWindow("STATIC", "未绑定 (全局模式)", WS_VISIBLE | WS_CHILD, 15, 210, 305, 20, hwnd, NULL, NULL, NULL);
+            // 第八行：绑定状态 (Y坐标由 210 下移至 240)
+            hBindLabel = CreateWindow("STATIC", "未绑定 (全局模式)", WS_VISIBLE | WS_CHILD, 15, 240, 305, 20, hwnd, NULL, NULL, NULL);
             
             // 字体美化
             SetDefaultFont(hLbl1); SetDefaultFont(hEditMin);
@@ -142,6 +167,9 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SetDefaultFont(hLbl5); SetDefaultFont(hCmbHkToggle);
             SetDefaultFont(hLbl6); SetDefaultFont(hCmbHkStop);
             SetDefaultFont(hLbl7); SetDefaultFont(hCmbHkBind);
+            SetDefaultFont(hLbl8); SetDefaultFont(hCmbHkRecord);
+            SetDefaultFont(hLbl9); SetDefaultFont(hCmbHkPlay);
+            SetDefaultFont(hLbl10); SetDefaultFont(hEditPlayCount);
             SetDefaultFont(hBtnApply); SetDefaultFont(hStatusLabel); SetDefaultFont(hBindLabel);
 
             CreateThread(NULL, 0, WorkerThread, (LPVOID)hwnd, 0, NULL);
@@ -156,6 +184,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_COMMAND: {
             if (LOWORD(wParam) == ID_BTN_APPLY) {
+                // 原有参数读取
                 char szMin[16], szMax[16];
                 GetWindowText(hEditMin, szMin, 16);
                 GetWindowText(hEditMax, szMax, 16);
@@ -176,9 +205,21 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
                 hotkey_toggle = VK_F1 + SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
                 hotkey_stop   = VK_F1 + SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
-                hotkey_bind   = VK_F1 + SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0); // 读取绑定热键
+                hotkey_bind   = VK_F1 + SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0); 
 
-                MessageBox(hwnd, "参数与快捷键已成功应用！\n(鼠标悬停在目标位置按下绑定键即可后台锁定)", "提示", MB_OK | MB_ICONINFORMATION);
+                // ====== 新增：录制回放参数读取 ======
+                char szPlay[16];
+                GetWindowText(hEditPlayCount, szPlay, 16);
+                int temp_play = atoi(szPlay);
+                if (temp_play < 1) temp_play = 1;
+                sprintf(szPlay, "%d", temp_play);
+                SetWindowText(hEditPlayCount, szPlay);
+                playback_count = temp_play;
+
+                hotkey_record   = VK_F1 + SendMessage(hCmbHkRecord, CB_GETCURSEL, 0, 0);
+                hotkey_playback = VK_F1 + SendMessage(hCmbHkPlay, CB_GETCURSEL, 0, 0);
+
+                MessageBox(hwnd, "参数与快捷键已成功应用！\n(可使用新增的录制与回放热键进行操作)", "提示", MB_OK | MB_ICONINFORMATION);
             }
             break;
         }
