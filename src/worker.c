@@ -13,8 +13,13 @@ DWORD WINAPI WorkerThread(LPVOID lpParam) {
     // 初始化随机数种子
     srand((unsigned int)time(NULL));
 
+    // ====== 新增：录制状态辅助变量 ======
+    short last_lbtn = 0;
+    short last_rbtn = 0;
+    DWORD last_time = 0;
+
     while (1) {
-        // ====== 新增：侦测“绑定/解绑”热键 ======
+        // ====== 原有：侦测“绑定/解绑”热键 ======
         if (GetAsyncKeyState(hotkey_bind) & 0x8000) {
             if (target_hwnd == NULL) {
                 // 1. 执行绑定逻辑
@@ -51,7 +56,7 @@ DWORD WINAPI WorkerThread(LPVOID lpParam) {
         }
         // ========================================
 
-        // 侦测“停止”热键
+        // 原有：侦测“停止”热键
         if (GetAsyncKeyState(hotkey_stop) & 0x8000) {
             if (is_active) {
                 is_active = false;
@@ -62,7 +67,7 @@ DWORD WINAPI WorkerThread(LPVOID lpParam) {
             Sleep(300); 
         }
 
-        // 侦测“开启/暂停”热键
+        // 原有：侦测“开启/暂停”热键
         if (GetAsyncKeyState(hotkey_toggle) & 0x8000) {
             is_active = !is_active;
             if (is_active) {
@@ -73,7 +78,71 @@ DWORD WINAPI WorkerThread(LPVOID lpParam) {
             Sleep(300); 
         }
 
-        // 执行动作与波动区间逻辑
+        // ====== 新增：侦测“录制”热键 ======
+        if (GetAsyncKeyState(hotkey_record) & 0x8000) {
+            is_recording = !is_recording;
+            if (is_recording) {
+                record_count = 0; // 开始录制时清空旧数据
+                // 记录开启录制瞬间的按键状态，防止误触发
+                last_lbtn = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
+                last_rbtn = GetAsyncKeyState(VK_RBUTTON) & 0x8000;
+                last_time = GetTickCount(); 
+                SetWindowTextA(hStatusLabel, ">> 状态: 正在录制中...");
+            } else {
+                SetWindowTextA(hStatusLabel, ">> 状态: 录制完成");
+            }
+            Sleep(300); // 防抖动
+        }
+
+        // ====== 新增：侦测“回放”热键 ======
+        if (GetAsyncKeyState(hotkey_playback) & 0x8000) {
+            if (!is_recording && record_count > 0) {
+                SetWindowTextA(hStatusLabel, ">> 状态: 正在回放中...");
+                execute_playback(); // 调用独立的回放函数
+                SetWindowTextA(hStatusLabel, ">> 状态: 已准备就绪");
+            }
+            Sleep(300); // 防抖动
+        }
+
+        // ====== 新增：数据采集逻辑 ======
+        if (is_recording && record_count < MAX_RECORD_SIZE) {
+            short curr_lbtn = GetAsyncKeyState(VK_LBUTTON) & 0x8000;
+            short curr_rbtn = GetAsyncKeyState(VK_RBUTTON) & 0x8000;
+            DWORD curr_time = GetTickCount();
+            
+            bool action_detected = false;
+            UINT msg_type = 0;
+
+            // 状态机：边缘检测（按键从松开变为按下，或从按下变为松开）
+            if (curr_lbtn && !last_lbtn) { msg_type = WM_LBUTTONDOWN; action_detected = true; }
+            else if (!curr_lbtn && last_lbtn) { msg_type = WM_LBUTTONUP; action_detected = true; }
+            else if (curr_rbtn && !last_rbtn) { msg_type = WM_RBUTTONDOWN; action_detected = true; }
+            else if (!curr_rbtn && last_rbtn) { msg_type = WM_RBUTTONUP; action_detected = true; }
+
+            if (action_detected) {
+                POINT pt;
+                GetCursorPos(&pt);
+                
+                record_buffer[record_count].pt = pt;
+                record_buffer[record_count].msg_type = msg_type;
+                
+                // 计算动作间隔，首个动作延迟为 0
+                if (record_count == 0) {
+                    record_buffer[record_count].delay = 0;
+                } else {
+                    record_buffer[record_count].delay = curr_time - last_time;
+                }
+                
+                last_time = curr_time;
+                record_count++;
+            }
+
+            // 更新状态
+            last_lbtn = curr_lbtn;
+            last_rbtn = curr_rbtn;
+        }
+
+        // 原有：执行动作与波动区间逻辑
         if (is_active) {
             execute_action();
             
