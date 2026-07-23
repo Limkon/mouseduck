@@ -2,6 +2,7 @@
 #include "action.h"
 #include "globals.h"
 
+// 原有：执行动作函数（完全保留原有功能与逻辑链路）
 void execute_action() {
     // 判断执行次数（0:单击则执行1次，1:双击则执行2次）
     int loop_count = (action_mode == 0) ? 1 : 2;
@@ -47,6 +48,63 @@ void execute_action() {
             // 双击系统级延迟
             if (loop_count > 1 && i == 0) {
                 Sleep(30); 
+            }
+        }
+    }
+}
+
+// ====== 新增：回放动作函数 ======
+void execute_playback() {
+    for (int p = 0; p < playback_count; p++) {
+        for (int i = 0; i < record_count; i++) {
+            // 强制停止热键侦测中断机制 (保护措施)
+            if (GetAsyncKeyState(hotkey_stop) & 0x8000) {
+                is_active = false;
+                return; // 立即终止回放循环
+            }
+
+            // 精准还原动作间隔
+            if (record_buffer[i].delay > 0) {
+                Sleep(record_buffer[i].delay);
+            }
+
+            UINT msg = record_buffer[i].msg_type;
+
+            // 完全复用原有的句柄判定逻辑
+            if (target_hwnd != NULL && IsWindow(target_hwnd)) {
+                // 后台模式：坐标转换与 PostMessage
+                POINT pt = record_buffer[i].pt;
+                ScreenToClient(target_hwnd, &pt);
+                LPARAM lparam = MAKELPARAM(pt.x, pt.y);
+                WPARAM wparam = 0; 
+                
+                // 映射对应的 wParam
+                if (msg == WM_LBUTTONDOWN) wparam = MK_LBUTTON;
+                else if (msg == WM_RBUTTONDOWN) wparam = MK_RBUTTON;
+                
+                PostMessage(target_hwnd, msg, wparam, lparam);
+            } else {
+                // 前台全局模式：SendInput
+                INPUT input = {0};
+                input.type = INPUT_MOUSE;
+                
+                // 映射消息到具体的 MOUSEEVENTF 标志位
+                if (msg == WM_LBUTTONDOWN) {
+                    input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+                } else if (msg == WM_LBUTTONUP) {
+                    input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                } else if (msg == WM_RBUTTONDOWN) {
+                    input.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
+                } else if (msg == WM_RBUTTONUP) {
+                    input.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+                } else if (msg == WM_MOUSEMOVE) {
+                    input.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE;
+                    // SendInput 的绝对坐标需要转换到 0~65535 区间
+                    input.mi.dx = record_buffer[i].pt.x * 65535 / GetSystemMetrics(SM_CXSCREEN);
+                    input.mi.dy = record_buffer[i].pt.y * 65535 / GetSystemMetrics(SM_CYSCREEN);
+                }
+                
+                SendInput(1, &input, sizeof(INPUT));
             }
         }
     }
