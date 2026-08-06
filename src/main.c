@@ -22,7 +22,7 @@ void replay_trajectory(void);
 void stop_replay(void);
 // ==================================================================================
 
-// 实例化全局变量
+// 实例化全局状态变量（全工程唯一内存定义，防止 LNK2005）
 bool is_active = false;
 int interval_min = 30;
 int interval_max = 30;
@@ -44,7 +44,7 @@ HWND hBindLabel = NULL;
 HWND hEditMin, hEditMax, hBtnApply;
 HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
 
-// 轨迹录制与回放专用全局变量实例化
+// 轨迹录制与回放专用全局变量实例化（全工程唯一内存定义，防止 LNK2005）
 bool is_recording = false;
 bool is_replaying = false;
 int replay_repeats = 1;
@@ -54,11 +54,12 @@ Point *points = NULL;
 int current_points = 0;
 int replay_index = 0;
 
-void SetDefaultFont(HWND hwnd) {
+// 使用 static 关键字修饰工具函数，将其作用域约束在本单元，解决 LNK2005 重复符号定义
+static void SetDefaultFont(HWND hwnd) {
     SendMessage(hwnd, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
 }
 
-void PopulateHotkeyCombo(HWND hCombo) {
+static void PopulateHotkeyCombo(HWND hCombo) {
     const char* keys[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"};
     for (int i = 0; i < 12; i++) {
         SendMessage(hCombo, CB_ADDSTRING, 0, (LPARAM)keys[i]);
@@ -114,6 +115,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             SetDefaultFont(hLbl6); SetDefaultFont(hCmbHkStop);
             SetDefaultFont(hLbl7); SetDefaultFont(hCmbHkBind);
             SetDefaultFont(hBtnApply); SetDefaultFont(hStatusLabel); SetDefaultFont(hBindLabel);
+
+            // 分配用于保存轨迹点的内存
+            if (points == NULL) {
+                points = (Point *)malloc(sizeof(Point) * MAX_POINTS);
+            }
 
             CreateThread(NULL, 0, WorkerThread, (LPVOID)hwnd, 0, NULL);
             break;
@@ -180,6 +186,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
 
         case WM_DESTROY:
+            if (points != NULL) {
+                free(points);
+                points = NULL;
+            }
             PostQuitMessage(0);
             break;
 
@@ -187,4 +197,55 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     return 0;
+}
+
+// ==================================================================================
+// ====== 新增：标准的 WinMain 程序入口（解决 LNK2019 / LNK1120 入口缺失问题） ======
+// ==================================================================================
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    const char CLASS_NAME[] = "SysRunnerMainClass";
+    
+    WNDCLASSEX wc = {0};
+    wc.cbSize = sizeof(WNDCLASSEX);
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = WndProc;
+    wc.hInstance = hInstance;
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wc.lpszClassName = CLASS_NAME;
+    wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+    wc.hIconSm = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+
+    if (!RegisterClassEx(&wc)) {
+        MessageBox(NULL, "窗口注册失败！", "错误", MB_ICONERROR | MB_OK);
+        return 0;
+    }
+
+    HWND hwnd = CreateWindowEx(
+        0,
+        CLASS_NAME,
+        "MouseDuck - 连点与轨迹脚本工具",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
+        CW_USEDEFAULT, CW_USEDEFAULT, 350, 280,
+        NULL,
+        NULL,
+        hInstance,
+        NULL
+    );
+
+    if (hwnd == NULL) {
+        MessageBox(NULL, "创建窗口失败！", "错误", MB_ICONERROR | MB_OK);
+        return 0;
+    }
+
+    ShowWindow(hwnd, nCmdShow);
+    UpdateWindow(hwnd);
+
+    MSG msg = {0};
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    return (int)msg.wParam;
 }
