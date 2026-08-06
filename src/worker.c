@@ -9,6 +9,18 @@
 #include "resource.h"
 #include "action.h"
 
+// ====================== 新增：声明全局 UI 控件（修复 worker.c 错误） ======================
+extern HWND hEditMin;
+extern HWND hEditMax;
+extern HWND hCmbBtnType;
+extern HWND hCmbActType;
+extern HWND hCmbHkToggle;
+extern HWND hCmbHkStop;
+extern HWND hCmbHkBind;
+extern HWND hBtnApply;
+extern HWND hStatusLabel;
+extern HWND hBindLabel;
+
 // 轨迹录制与回放专用变量（已与原功能完美整合）
 bool is_recording = false;
 bool is_replaying = false;
