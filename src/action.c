@@ -7,13 +7,14 @@
 #include "action.h"
 #include "worker.h"
 
-// 轨迹录制与回放专用变量
+// 轨迹录制与回放专用变量（补齐 current_points 外部声明）
 extern bool is_recording;
 extern bool is_replaying;
 extern int replay_repeats;
 extern int replay_index;
 extern unsigned long long replay_start_time;
 extern Point *points;
+extern int current_points;
 
 void execute_action() {
     // 原动作执行逻辑（完整保留，无任何修改）
