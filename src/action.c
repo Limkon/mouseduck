@@ -9,6 +9,8 @@
 #include "resource.h"
 #include "action.h"
 
+#define _CRT_SECURE_NO_WARNINGS
+
 // 轨迹录制与回放专用变量（已与原功能完美整合）
 bool is_recording = false;
 bool is_replaying = false;
