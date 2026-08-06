@@ -14,6 +14,12 @@
 #define ID_CMB_HK_STOP    1007
 #define ID_CMB_HK_BIND    1008  // 新增：绑定热键下拉框 ID
 
+// 轨迹点结构体定义
+typedef struct {
+    int x, y;
+    unsigned long long timestamp;
+} Point;
+
 // 全局变量声明：跨线程通信与状态同步
 extern bool is_active;
 extern int interval_min;
@@ -31,5 +37,21 @@ extern HWND target_hwnd;  // 绑定的目标窗口句柄 (NULL代表未绑定全
 extern POINT bind_pt;     // 绑定时锁定的窗口内相对坐标
 extern int hotkey_bind;   // 绑定/解绑热键 (默认 VK_F10)
 extern HWND hBindLabel;   // UI 上显示当前绑定状态的标签句柄
+
+// ====== 轨迹录制与回放专用变量 ======
+extern bool is_recording;
+extern bool is_replaying;
+extern int replay_repeats;
+extern int replay_index;
+extern unsigned long long replay_start_time;
+extern Point *points;
+extern int current_points;
+extern int MAX_POINTS;
+
+// ====== 跨模块调用函数原型声明 ======
+void start_recording(void);
+void stop_recording(void);
+void replay_trajectory(void);
+void stop_replay(void);
 
 #endif // GLOBALS_H
