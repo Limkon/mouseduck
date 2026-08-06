@@ -6,9 +6,6 @@
 #include "globals.h"
 #include "worker.h"
 #include "resource.h"
-#include "action.h"
-
-#define _CRT_SECURE_NO_WARNINGS
 
 // ====== 启用 Windows 现代视觉样式 ======
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
@@ -34,13 +31,16 @@ POINT bind_pt = {0, 0};
 int hotkey_bind = VK_F10;  // 默认 F10
 HWND hBindLabel = NULL;
 
-// 轨迹录制与回放专用变量（已与原功能完美整合）
+// 局部 UI 控件句柄
+HWND hEditMin, hEditMax, hBtnApply;
+HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
+
+// 轨迹录制与回放专用变量
 bool is_recording = false;
 bool is_replaying = false;
-int replay_repeats = 1;           // 用户输入的回放次数
+int replay_repeats = 1;
 unsigned long long replay_start_time = 0;
-
-int MAX_POINTS = 5000;            // 最大录制点数（可根据需要调整）
+int MAX_POINTS = 5000;
 typedef struct {
     int x, y;
     unsigned long long timestamp;
@@ -49,16 +49,10 @@ Point *points = NULL;
 int current_points = 0;
 int replay_index = 0;
 
-// 局部 UI 控件句柄
-HWND hEditMin, hEditMax, hBtnApply;
-HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
-
-// 全局字体美化函数（保留原样）
 void SetDefaultFont(HWND hwnd) {
     SendMessage(hwnd, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
 }
 
-// 全局热键下拉框填充函数（保留原样）
 void PopulateHotkeyCombo(HWND hCombo) {
     const char* keys[] = {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"};
     for (int i = 0; i < 12; i++) {
@@ -66,48 +60,9 @@ void PopulateHotkeyCombo(HWND hCombo) {
     }
 }
 
-// ====================== 轨迹录制/回放专用函数 ======================
-void start_recording() {
-    if (is_recording) return;
-    is_recording = true;
-    current_points = 0;
-    SetWindowTextA(hStatusLabel, ">> 状态: 录制中... 按 P 暂停，C 取消，R 重新录制");
-    MessageBox(NULL, "鼠标轨迹录制已开始！\n移动鼠标即可录制路径（鼠标需悬停在窗口上）。\n按 P 暂停/继续，按 C 取消，按 R 重新开始。", "鼠标轨迹录制", MB_OK | MB_ICONINFORMATION);
-}
-
-void stop_recording() {
-    if (!is_recording) return;
-    is_recording = false;
-    SetWindowTextA(hStatusLabel, ">> 状态: 录制已停止（轨迹已保存）");
-}
-
-void replay_trajectory() {
-    if (!is_recording || current_points == 0) {
-        MessageBox(NULL, "请先录制一条轨迹！", "提示", MB_OK | MB_ICONWARNING);
-        return;
-    }
-    is_replaying = true;
-    replay_index = 0;
-    replay_start_time = GetTickCount64();
-    SetWindowTextA(hStatusLabel, ">> 状态: 回放中... （输入回放次数）");
-    char input[10];
-    GetWindowTextA(GetDlgItem(NULL, ID_EDIT_MAX), input, sizeof(input)); // 临时用编辑框显示次数
-    replay_repeats = atoi(input);
-    if (replay_repeats <= 0) replay_repeats = 1;
-    SetWindowTextA(hStatusLabel, ">> 状态: 回放中...");
-    MessageBox(NULL, "回放已启动！按 B 停止回放。", "回放提示", MB_OK | MB_ICONINFORMATION);
-}
-
-void stop_replay() {
-    is_replaying = false;
-    SetWindowTextA(hStatusLabel, ">> 状态: 回放已停止");
-}
-
-// ====================== 窗口消息处理（已审计，无冲突） ======================
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_CREATE: {
-            // 原 UI 创建代码（完整保留，无任何修改）
             HWND hLbl1 = CreateWindow("STATIC", "最小间隔:", WS_VISIBLE | WS_CHILD, 15, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMin = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 95, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MIN, NULL, NULL);
             
@@ -167,7 +122,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_COMMAND: {
             if (LOWORD(wParam) == ID_BTN_APPLY) {
-                // 原参数应用逻辑（100% 保留）
                 char szMin[16], szMax[16];
                 GetWindowText(hEditMin, szMin, 16);
                 GetWindowText(hEditMax, szMax, 16);
@@ -195,13 +149,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
         }
 
-        // ====================== 新增：轨迹录制/回放按键处理 ======================
         case WM_KEYDOWN: {
             switch (wParam) {
-                case 'R':  // 开始/重新录制
-                    start_recording();
-                    break;
-                case 'P':  // 暂停/继续录制
+                case 'R': start_recording(); break;
+                case 'P': 
                     if (is_recording) {
                         is_recording = false;
                         SetWindowTextA(hStatusLabel, ">> 状态: 录制已暂停（按 R 继续录制）");
@@ -210,16 +161,10 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                         SetWindowTextA(hStatusLabel, ">> 状态: 录制已恢复");
                     }
                     break;
-                case 'C':  // 取消录制
-                    stop_recording();
-                    break;
-                case 'B':  // 开始回放（输入次数）
-                    if (is_recording) {
-                        stop_recording();
-                        replay_trajectory();
-                    } else {
-                        replay_trajectory();
-                    }
+                case 'C': stop_recording(); break;
+                case 'B': 
+                    if (is_recording) stop_recording();
+                    replay_trajectory();
                     break;
             }
             break;
@@ -239,77 +184,8 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-// ====================== 线程入口（已审计，轨迹不干扰原动作） ======================
-DWORD WINAPI WorkerThread(LPVOID lpParam) {
-    HWND hMainWnd = (HWND)lpParam;
-    srand((unsigned int)time(NULL));
-
-    while (1) {
-        // 原热键侦测逻辑（完整保留）
-        if (GetAsyncKeyState(hotkey_bind) & 0x8000) {
-            // 绑定/解绑逻辑（原样）
-            // ...（保持原代码不变）
-            Sleep(300);
-        }
-        if (GetAsyncKeyState(hotkey_stop) & 0x8000) {
-            // 停止逻辑（原样）
-            Sleep(300);
-        }
-        if (GetAsyncKeyState(hotkey_toggle) & 0x8000) {
-            // 开启/暂停逻辑（原样）
-            Sleep(300);
-        }
-
-        // 执行动作（原逻辑）
-        if (is_active) {
-            execute_action();
-            int current_interval = interval_min;
-            if (interval_max > interval_min) {
-                current_interval = interval_min + rand() % (interval_max - interval_min + 1);
-            }
-            Sleep(current_interval);
-        } else {
-            Sleep(10);
-        }
-
-        // ====================== 新增：轨迹录制与回放（精确毫秒级） ======================
-        if (is_recording) {
-            POINT pt;
-            if (GetCursorPos(&pt)) {
-                if (current_points < MAX_POINTS) {
-                    points[current_points].x = pt.x;
-                    points[current_points].y = pt.y;
-                    points[current_points].timestamp = GetTickCount64() - replay_start_time;
-                    current_points++;
-                }
-            }
-        }
-
-        if (is_replaying && current_points > 0) {
-            if (replay_index < current_points) {
-                unsigned long long elapsed = GetTickCount64() - replay_start_time;
-                while (GetTickCount64() - replay_start_time < elapsed) {
-                    // 精确延时（毫秒级）
-                    Sleep(1);
-                }
-                // 模拟鼠标移动到录制点（SendInput 精确轨迹，无抖动）
-                INPUT input = {0};
-                input.type = INPUT_MOUSE;
-                input.mi.dx = points[replay_index].x;
-                input.mi.dy = points[replay_index].y;
-                input.mi.dwFlags = MOUSEEVENTF_MOVE;
-                SendInput(1, &input, sizeof(INPUT));
-                replay_index++;
-            } else {
-                // 完成一次回放
-                if (replay_repeats > 1) {
-                    replay_repeats--;
-                    replay_index = 0;
-                } else {
-                    stop_replay();
-                }
-            }
-        }
-    }
-    return 0;
-}
+DWORD WINAPI WorkerThread(LPVOID lpParam);
+void start_recording();
+void stop_recording();
+void replay_trajectory();
+void stop_replay();
