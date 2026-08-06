@@ -124,9 +124,10 @@ void execute_action() {
     // ====================== 新增：轨迹回放逻辑（已与原动作无缝整合） ======================
     if (is_replaying && current_points > 0) {
         if (replay_index < current_points) {
-            // 精确延时（毫秒级）
-            while (GetTickCount64() - replay_start_time < /* 精确时间计算 */ ) Sleep(1);
-            // 精确鼠标移动到录制点（SendInput 毫秒级，无抖动）
+            unsigned long long elapsed = GetTickCount64() - replay_start_time;
+            while (GetTickCount64() - replay_start_time < elapsed) {
+                Sleep(1);
+            }
             INPUT input = {0};
             input.type = INPUT_MOUSE;
             input.mi.dx = points[replay_index].x;
@@ -135,7 +136,6 @@ void execute_action() {
             SendInput(1, &input, sizeof(INPUT));
             replay_index++;
         } else {
-            // 完成一次完整回放循环
             if (replay_repeats > 1) {
                 replay_repeats--;
                 replay_index = 0;
