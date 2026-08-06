@@ -8,6 +8,8 @@
 #include "resource.h"
 #include "action.h"
 
+#define _CRT_SECURE_NO_WARNINGS
+
 // ====== 启用 Windows 现代视觉样式 ======
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
