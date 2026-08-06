@@ -9,6 +9,8 @@
 #include "resource.h"
 #include "action.h"
 
+#define _CRT_SECURE_NO_WARNINGS
+
 // ====================== 新增：声明全局 UI 控件（修复 worker.c 错误） ======================
 extern HWND hEditMin;
 extern HWND hEditMax;
