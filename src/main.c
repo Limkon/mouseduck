@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,14 @@
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 // =======================================
+
+// ====== 跨模块函数原型前置声明（解决 C4013 隐式声明与 C2371 重定义冲突） ======
+DWORD WINAPI WorkerThread(LPVOID lpParam);
+void start_recording(void);
+void stop_recording(void);
+void replay_trajectory(void);
+void stop_replay(void);
+// ==================================================================================
 
 // 实例化全局变量
 bool is_active = false;
@@ -35,16 +44,12 @@ HWND hBindLabel = NULL;
 HWND hEditMin, hEditMax, hBtnApply;
 HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
 
-// 轨迹录制与回放专用变量
+// 轨迹录制与回放专用全局变量实例化
 bool is_recording = false;
 bool is_replaying = false;
 int replay_repeats = 1;
 unsigned long long replay_start_time = 0;
 int MAX_POINTS = 5000;
-typedef struct {
-    int x, y;
-    unsigned long long timestamp;
-} Point;
 Point *points = NULL;
 int current_points = 0;
 int replay_index = 0;
@@ -129,20 +134,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 int temp_max = atoi(szMax);
                 if (temp_min < 1) temp_min = 1;
                 if (temp_max < temp_min) temp_max = temp_min;
-                sprintf(szMin, "%d", temp_min);
-                sprintf(szMax, "%d", temp_max);
+                sprintf_s(szMin, sizeof(szMin), "%d", temp_min);
+                sprintf_s(szMax, sizeof(szMax), "%d", temp_max);
                 SetWindowText(hEditMin, szMin);
                 SetWindowText(hEditMax, szMax);
                 
                 interval_min = temp_min;
                 interval_max = temp_max;
 
-                action_button = SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0);
-                action_mode   = SendMessage(hCmbActType, CB_GETCURSEL, 0, 0);
+                action_button = (int)SendMessage(hCmbBtnType, CB_GETCURSEL, 0, 0);
+                action_mode   = (int)SendMessage(hCmbActType, CB_GETCURSEL, 0, 0);
 
-                hotkey_toggle = VK_F1 + SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
-                hotkey_stop   = VK_F1 + SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
-                hotkey_bind   = VK_F1 + SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0);
+                hotkey_toggle = VK_F1 + (int)SendMessage(hCmbHkToggle, CB_GETCURSEL, 0, 0);
+                hotkey_stop   = VK_F1 + (int)SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
+                hotkey_bind   = VK_F1 + (int)SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0);
 
                 MessageBox(hwnd, "参数与快捷键已成功应用！\n(鼠标悬停在目标位置按下绑定键即可后台锁定)", "提示", MB_OK | MB_ICONINFORMATION);
             }
@@ -183,9 +188,3 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     }
     return 0;
 }
-
-DWORD WINAPI WorkerThread(LPVOID lpParam);
-void start_recording();
-void stop_recording();
-void replay_trajectory();
-void stop_replay();
