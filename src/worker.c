@@ -1,5 +1,5 @@
 // ==================== src/worker.c ====================
-// 替换整个文件内容（覆盖原代码）
+// 完全替换此文件
 
 #include <windows.h>
 #include <stdio.h>
@@ -12,7 +12,7 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
-// ====================== UI 控件句柄（从主窗口复制） ======================
+// ====================== UI 控件句柄 ======================
 extern HWND hEditMin, hEditMax, hBtnApply;
 extern HWND hCmbBtnType, hCmbActType, hCmbHkToggle, hCmbHkStop, hCmbHkBind;
 extern HWND hStatusLabel;
@@ -32,7 +32,7 @@ Point *points = NULL;
 int current_points = 0;
 int replay_index = 0;
 
-// ====================== 字体/热键下拉框函数（保留） ======================
+// ====================== 字体函数 ======================
 void SetDefaultFont(HWND hwnd) {
     SendMessage(hwnd, WM_SETFONT, (WPARAM)GetStockObject(DEFAULT_GUI_FONT), TRUE);
 }
@@ -44,7 +44,7 @@ void PopulateHotkeyCombo(HWND hCombo) {
     }
 }
 
-// ====================== 录制/回放专用函数 ======================
+// ====================== 录制/回放函数 ======================
 void start_recording() {
     if (is_recording) return;
     is_recording = true;
@@ -61,6 +61,7 @@ void stop_recording() {
     SetWindowTextA(hStatusLabel, ">> 状态: 录制已停止（轨迹已保存）");
 }
 
+// ====================== 回放函数（全局键 B 触发） ======================
 void replay_trajectory() {
     if (!is_recording || current_points == 0) {
         MessageBox(NULL, "请先录制一条轨迹！", "提示", MB_OK | MB_ICONWARNING);
@@ -71,7 +72,6 @@ void replay_trajectory() {
     replay_start_time = GetTickCount64();
     SetWindowTextA(hStatusLabel, ">> 状态: 回放中...");
 
-    // 正确读取回放次数（从主窗口的间隔编辑框）
     char input[10];
     GetWindowTextA(hEditMax, input, sizeof(input));
     replay_repeats = atoi(input);
@@ -90,18 +90,18 @@ void stop_replay() {
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
         case WM_CREATE: {
-            // ==================== 原间隔设置控件（保留） ====================
+            // ==================== 原控件（保留） ====================
             HWND hLbl1 = CreateWindow("STATIC", "最小间隔:", WS_VISIBLE | WS_CHILD, 15, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMin = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 95, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MIN, NULL, NULL);
             
             HWND hLbl2 = CreateWindow("STATIC", "最大间隔:", WS_VISIBLE | WS_CHILD, 175, 15, 80, 20, hwnd, NULL, NULL, NULL);
             hEditMax = CreateWindow("EDIT", "30", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 12, 65, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);
 
-            // ==================== 新增：回放次数设置控件（这是你最需要修复的部分） ====================
+            // ==================== 回放次数控件（新增） ====================
             HWND hLblReplay = CreateWindow("STATIC", "回放次数:", WS_VISIBLE | WS_CHILD, 15, 195, 80, 20, hwnd, NULL, NULL, NULL);
-            HWND hEditReplay = CreateWindow("EDIT", "1", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 192, 65, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);  // 用 ID_EDIT_MAX（主窗口里也用了这个ID）
+            HWND hEditReplay = CreateWindow("EDIT", "1", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_NUMBER, 255, 192, 65, 20, hwnd, (HMENU)ID_EDIT_MAX, NULL, NULL);
 
-            // ==================== 原热键/模式控件（保留） ====================
+            // ==================== 热键控件（保留） ====================
             HWND hLbl3 = CreateWindow("STATIC", "模拟按键:", WS_VISIBLE | WS_CHILD, 15, 45, 80, 20, hwnd, NULL, NULL, NULL);
             hCmbBtnType = CreateWindow("COMBOBOX", "", CBS_DROPDOWNLIST | WS_CHILD | WS_VISIBLE, 95, 42, 65, 150, hwnd, (HMENU)ID_CMB_BTN_TYPE, NULL, NULL);
             SendMessage(hCmbBtnType, CB_ADDSTRING, 0, (LPARAM)"左键");
@@ -135,7 +135,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             hBindLabel = CreateWindow("STATIC", "未绑定 (全局模式)", WS_VISIBLE | WS_CHILD, 15, 210, 305, 20, hwnd, NULL, NULL, NULL);
 
             SetDefaultFont(hLbl1); SetDefaultFont(hEditMin); SetDefaultFont(hLbl2); SetDefaultFont(hEditMax);
-            SetDefaultFont(hLblReplay); SetDefaultFont(hEditReplay);  // 新增
+            SetDefaultFont(hLblReplay); SetDefaultFont(hEditReplay);
             SetDefaultFont(hLbl3); SetDefaultFont(hCmbBtnType); SetDefaultFont(hLbl4); SetDefaultFont(hCmbActType);
             SetDefaultFont(hLbl5); SetDefaultFont(hCmbHkToggle); SetDefaultFont(hLbl6); SetDefaultFont(hCmbHkStop);
             SetDefaultFont(hLbl7); SetDefaultFont(hCmbHkBind); SetDefaultFont(hBtnApply); SetDefaultFont(hStatusLabel); SetDefaultFont(hBindLabel);
@@ -146,7 +146,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_COMMAND: {
             if (LOWORD(wParam) == ID_BTN_APPLY) {
-                // 原代码（保留）
+                // 原参数保存代码（保持不变）
                 char szMin[16], szMax[16];
                 GetWindowText(hEditMin, szMin, 16);
                 GetWindowText(hEditMax, szMax, 16);
@@ -168,7 +168,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 hotkey_stop   = VK_F1 + SendMessage(hCmbHkStop, CB_GETCURSEL, 0, 0);
                 hotkey_bind   = VK_F1 + SendMessage(hCmbHkBind, CB_GETCURSEL, 0, 0);
 
-                MessageBox(hwnd, "参数与快捷键已成功应用！\n(鼠标悬停在目标位置按下绑定键即可后台锁定)", "提示", MB_OK | MB_ICONINFORMATION);
+                MessageBox(hwnd, "参数与快捷键已成功应用！", "提示", MB_OK | MB_ICONINFORMATION);
             }
             break;
         }
@@ -187,8 +187,11 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     break;
                 case 'C': stop_recording(); break;
                 case 'B': 
-                    if (is_recording) stop_recording();
-                    replay_trajectory();
+                    if (is_recording) {
+                        stop_recording();           // 主窗口 B = 停止录制
+                    } else if (current_points > 0) {
+                        replay_trajectory();         // 后台 B = 回放
+                    }
                     break;
             }
             break;
@@ -201,15 +204,14 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return 0;
 }
 
-// ====================== 线程入口（修复版） ======================
+// ====================== 线程入口 ======================
 DWORD WINAPI WorkerThread(LPVOID lpParam) {
     HWND hMainWnd = (HWND)lpParam;
     srand((unsigned int)time(NULL));
 
     while (1) {
-        // 原热键侦测（保留）
+        // ==================== 原热键侦测（保留） ====================
         if (GetAsyncKeyState(hotkey_bind) & 0x8000) {
-            // 绑定/解绑逻辑（原代码保持不变）
             POINT pt;
             GetCursorPos(&pt);
             HWND hwndUnderCursor = WindowFromPoint(pt);
@@ -228,19 +230,17 @@ DWORD WINAPI WorkerThread(LPVOID lpParam) {
             Sleep(300);
         }
         if (GetAsyncKeyState(hotkey_stop) & 0x8000) {
-            // 停止逻辑（原代码保持不变）
             if (is_active) is_active = false;
             else is_active = true;
             Sleep(300);
         }
         if (GetAsyncKeyState(hotkey_toggle) & 0x8000) {
-            // 开启/暂停逻辑（原代码保持不变）
             if (is_active) is_active = false;
             else is_active = true;
             Sleep(300);
         }
 
-        // 执行动作（原代码）
+        // ==================== 执行动作（原代码） ====================
         if (is_active) {
             execute_action();
             int current_interval = interval_min;
@@ -252,7 +252,7 @@ DWORD WINAPI WorkerThread(LPVOID lpParam) {
             Sleep(10);
         }
 
-        // ====================== 录制/回放（已修复） ======================
+        // ==================== 录制/回放逻辑（已修复） ====================
         if (is_recording) {
             POINT pt;
             if (GetCursorPos(&pt) && current_points < MAX_POINTS) {
